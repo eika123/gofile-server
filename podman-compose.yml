@@ -20,10 +20,12 @@ services:
     container_name: file-server-proxy
     ports:
       - "${PROXY_PORT:-80}:80"
+      - "${PROXY_SSL_PORT:-443}:443"
     depends_on:
       - file-server
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:Z
+      - ./nginx/certs:/etc/nginx/certs:Z
       - ./logs/nginx:/var/log/nginx:Z
       - shared_data:/app/shared:Z
 

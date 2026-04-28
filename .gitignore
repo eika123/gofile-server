@@ -4,3 +4,4 @@ __pycache__
 shared
 bin
 logs/
+nginx/certs/

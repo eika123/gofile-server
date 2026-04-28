@@ -25,7 +25,8 @@ func handleHello(w http.ResponseWriter, r *http.Request) {
 }
 
 var (
-	ROOT_PATH = "./"
+	ROOT_PATH   = "./"
+	trustedRoot = "./"
 )
 
 func loadEnv() {
@@ -58,6 +59,9 @@ func loadEnv() {
 		}
 	}
 
+	ROOT_PATH = filepath.Clean(ROOT_PATH)
+	trustedRoot = ROOT_PATH
+
 	fmt.Printf("Using ROOT_PATH=%s\n", ROOT_PATH)
 }
 
@@ -88,10 +92,6 @@ func inTrustedRoot(path string, trustedRoot string) error {
 // verifyPath resolves symlinks and checks that the path remains within ROOT_PATH.
 // Called by resolveRequestedPath before file access.
 func verifyPath(path string) (string, error) {
-
-	// Read from config in the real world
-	trustedRoot := ROOT_PATH
-
 	c := filepath.Clean(path)
 	fmt.Println("veryPath: Cleaned path: " + c)
 
@@ -105,10 +105,10 @@ func verifyPath(path string) (string, error) {
 	if err != nil {
 		fmt.Println("Error " + err.Error())
 		return r, errors.New("Unsafe or invalid path specified")
-	} else {
-		fmt.Println("veryPath: Path is within trusted root: " + r)
-		return r, nil
 	}
+
+	fmt.Println("veryPath: Path is within trusted root: " + r)
+	return r, nil
 }
 
 // parseRequestedPath extracts the "path" query parameter from the request.
@@ -165,30 +165,18 @@ func getDisplayPath(resolvedPath string) string {
 // serveFile writes the contents of a regular file to the response.
 // Called by DisplayDirectoryContents when the requested path is a file.
 func serveFile(w http.ResponseWriter, path string, info os.FileInfo) error {
-	content, err := file_traverse.GetFileContent(path)
-	if err != nil {
-		return err
-	}
-
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", info.Name()))
-	_, err = w.Write(content)
-	return err
+	return file_traverse.StreamFileContent(w, path)
 }
 
 // listDirectoryContents returns the files and subdirectories for the given path.
 // Called by DisplayDirectoryContents when the requested path is a directory.
 func listDirectoryContents(path string) ([]string, []string, error) {
-	files, err := file_traverse.ListFiles(path)
+	dirs, files, err := file_traverse.ListDirectoryEntries(path)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	dirs, err := file_traverse.ListSubDirectories(path)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	return files, dirs, nil
 }
 

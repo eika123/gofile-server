@@ -43,13 +43,14 @@ scripts/podman-up.sh --dev
 
 This will use the default unprivileged ports:
 
-- `PROXY_PORT=8080` for the reverse proxy
+- `PROXY_PORT=8080` for HTTP reverse-proxy access
+- `PROXY_SSL_PORT=8443` for HTTPS reverse-proxy access
 - `APP_PORT=8081` for direct app access if needed
 
 To override the defaults, export values in your shell or `.env` file:
 
 ```sh
-PROXY_PORT=8085 APP_PORT=8086 scripts/podman-up.sh --dev
+PROXY_PORT=8085 PROXY_SSL_PORT=8444 APP_PORT=8086 scripts/podman-up.sh --dev
 ```
 
 ## Running locally without Podman
@@ -75,6 +76,31 @@ To stop and remove containers:
 ```sh
 scripts/podman-down.sh
 ```
+
+## HTTPS support for Nginx
+
+The reverse proxy can also serve HTTPS using a self-signed certificate.
+Generate the certificate pair before starting the stack:
+
+```sh
+scripts/generate-self-signed-cert.sh
+```
+
+This creates `nginx/certs/selfsigned.crt` and `nginx/certs/selfsigned.key`.
+
+If you are running the compose stack in development mode, access it at:
+
+```sh
+https://localhost:8443
+```
+
+For regular mode, use:
+
+```sh
+https://localhost
+```
+
+Your browser will warn about the self-signed certificate unless you trust it locally.
 
 ## Copying files into the shared volume
 

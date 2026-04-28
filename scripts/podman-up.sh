@@ -24,6 +24,7 @@ fi
 if [ "$DEV_MODE" = "true" ]; then
   echo "Starting in development mode; using non-privileged ports."
   export PROXY_PORT=${PROXY_PORT:-8080}
+  export PROXY_SSL_PORT=${PROXY_SSL_PORT:-8443}
   export APP_PORT=${APP_PORT:-8081}
 fi
 

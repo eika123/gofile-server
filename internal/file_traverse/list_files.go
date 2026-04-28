@@ -1,39 +1,36 @@
 package file_traverse
 
-import "os"
+import (
+	"io"
+	"os"
+)
 
-func ListFiles(dir string) ([]string, error) {
-	files, err := os.ReadDir(dir)
+func ListDirectoryEntries(dir string) ([]string, []string, error) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var regularFiles []string
-	for _, file := range files {
-		if !file.IsDir() {
-			regularFiles = append(regularFiles, file.Name())
+
+	var files []string
+	var dirs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, entry.Name())
+			continue
 		}
+		files = append(files, entry.Name())
 	}
-	return regularFiles, nil
+
+	return dirs, files, nil
 }
 
-func ListSubDirectories(dir string) ([]string, error) {
-	files, err := os.ReadDir(dir)
+func StreamFileContent(dst io.Writer, filePath string) error {
+	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var subdirs []string
-	for _, file := range files {
-		if file.IsDir() {
-			subdirs = append(subdirs, file.Name())
-		}
-	}
-	return subdirs, nil
-}
+	defer f.Close()
 
-func GetFileContent(filePath string) ([]byte, error) {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	return content, nil
+	_, err = io.Copy(dst, f)
+	return err
 }
