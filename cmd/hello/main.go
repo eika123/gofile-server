@@ -112,11 +112,11 @@ func verifyPath(path string) (string, error) {
 }
 
 // parseRequestedPath extracts the "path" query parameter from the request.
-// Called by DisplayDirectoryContents.
+// If the parameter is missing, it defaults to the repository root.
 func parseRequestedPath(r *http.Request) (string, error) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
-		return "", errors.New("Missing 'path' query parameter")
+		return "/", nil
 	}
 	return path, nil
 }
@@ -227,12 +227,20 @@ func Router(authMiddleware func(http.Handler) http.Handler) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+
 	if authMiddleware != nil {
-		r.Use(authMiddleware)
+		r.Group(func(r chi.Router) {
+			r.Use(authMiddleware)
+			r.Get("/hello", handleHello)
+			r.Get("/", handleDisplayDirectoryContents)
+			r.Get("/files", handleDisplayDirectoryContents)
+		})
+	} else {
+		r.Get("/hello", handleHello)
+		r.Get("/", handleDisplayDirectoryContents)
+		r.Get("/files", handleDisplayDirectoryContents)
 	}
 
-	r.Get("/hello", handleHello)
-	r.Get("/files", handleDisplayDirectoryContents)
 	r.Handle("/static/*", http.StripPrefix("/static/", ui.StaticHandler()))
 
 	return r

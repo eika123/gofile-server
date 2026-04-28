@@ -26,6 +26,7 @@ var directoryTemplate = template.Must(template.New("directory").Parse(`<!doctype
 <head>
   <meta charset="utf-8">
   <title>Directory Contents</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="/static/css/dirlist.css">
   <script src="/static/js/dirlist.js" defer></script>
 </head>
