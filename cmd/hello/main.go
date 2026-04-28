@@ -1,17 +1,20 @@
 package main
 
 import (
+	"file-server/internal/auth"
 	"file-server/internal/file_traverse"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"net/http"
-
 	"errors"
-
 	"log/slog"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/joho/godotenv"
 )
 
 func hello(w http.ResponseWriter, r *http.Request) {
@@ -21,6 +24,19 @@ func hello(w http.ResponseWriter, r *http.Request) {
 var (
 	ROOT_PATH = "./"
 )
+
+func loadEnv() {
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println("Error loading .env file:", err)
+		return
+	}
+	rootPath := os.Getenv("ROOT_PATH")
+	if rootPath != "" {
+		ROOT_PATH = rootPath
+	}
+	fmt.Printf("Loaded ROOT_PATH from .env: %s\n", ROOT_PATH)
+}
 
 func inTrustedRoot(path string, trustedRoot string) error {
 	absPath, err := filepath.Abs(path)
@@ -90,6 +106,14 @@ func DisplayDirectoryContents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Printf("received path = %s\n", path)
+
+	// trim ROOT_PATH from the beginning of path if it exists to avoid double join
+	if after, ok := strings.CutPrefix(path, ROOT_PATH); ok {
+		path = after
+		fmt.Printf("trimmed path = %s\n", path)
+	}
+
 	path = filepath.Join(ROOT_PATH, path)
 	path, err := verifyPath(path)
 	if err != nil {
@@ -130,56 +154,62 @@ func DisplayDirectoryContents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	startHTML(w, "Directory Contents")
-	fmt.Fprintf(w, "<h2>Directories in directory %s:</h2>\n", path)
+	fmt.Fprintf(w, "<h2>Directories in directory \"%s\":</h2>\n", path)
 	for _, dir := range dirs {
 		fmt.Fprintf(w, "<li>%s</li>\n", wrapTargetInLink(filepath.Join(path, dir), dir))
 	}
 
-	fmt.Fprintf(w, "<h2>Files in directory %s:</h2>\n", path)
+	fmt.Fprintf(w, "<h2>Files in directory \"%s\":</h2>\n", path)
 	for _, file := range files {
+		fmt.Println("file: " + file)
+		fmt.Println("path: " + filepath.Join(path, file))
 		fmt.Fprintf(w, "<li>%s</li>\n", wrapTargetInLink(filepath.Join(path, file), file))
 	}
 	endHTML(w)
 }
 
-func Router() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/hello", hello)
-	mux.HandleFunc("/files", DisplayDirectoryContents)
-	return mux
+func Router(authMiddleware func(http.Handler) http.Handler) http.Handler {
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	if authMiddleware != nil {
+		r.Use(authMiddleware)
+	}
+
+	r.Get("/hello", hello)
+	r.Get("/files", DisplayDirectoryContents)
+
+	return r
+}
+
+func envOrDefault(name, fallback string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	return value
 }
 
 func main() {
+	loadEnv()
 
-	kek := filepath.Join("hey", "kek")
-
-	fmt.Println(kek)
-
-	current_working_dir, err := os.Getwd()
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-	files, err := file_traverse.ListFiles(current_working_dir)
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-	dirs, err := file_traverse.ListSubDirectories(current_working_dir)
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-	fmt.Println("Directories:")
-	for _, dir := range dirs {
-		fmt.Println(dir)
-	}
-	fmt.Println("\nFiles:")
-	for _, file := range files {
-		fmt.Println(file)
+	authUser := os.Getenv("BASIC_AUTH_USER")
+	authPass := os.Getenv("BASIC_AUTH_PASS")
+	if authUser == "" || authPass == "" {
+		fmt.Fprintln(os.Stderr, "BASIC_AUTH_USER and BASIC_AUTH_PASS must be set")
+		os.Exit(1)
 	}
 
-	port := "8080"
-	fmt.Printf("Starting server on port %s...\n", port)
-	http.ListenAndServe(":"+port, Router())
+	bindAddr := envOrDefault("BIND_ADDR", "")
+	if bindAddr == "" {
+		bindAddr = ":" + envOrDefault("PORT", "8080")
+	}
+
+	fmt.Printf("Starting server on %s...\n", bindAddr)
+	router := Router(auth.NewBasicAuth(authUser, authPass))
+	if err := http.ListenAndServe(bindAddr, router); err != nil {
+		slog.Error("server stopped", "err", err)
+	}
 }
