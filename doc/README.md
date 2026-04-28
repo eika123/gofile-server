@@ -3,6 +3,7 @@
 This folder contains design and architecture notes for the file server.
 
 - `architecture.md` explains the current separation of concerns in the app.
+- `podman.md` explains the Podman deployment, reverse proxy setup, and persistent shared volume.
 
 ## How to use
 

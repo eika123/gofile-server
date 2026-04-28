@@ -1,0 +1,9 @@
+..git
+.doc
+doc
+scripts
+shared
+.env
+bin
+**/*.md
+**/nginx

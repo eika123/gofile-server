@@ -5,8 +5,10 @@ import (
 	"file-server/internal/file_traverse"
 	"file-server/internal/ui"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -27,16 +29,36 @@ var (
 )
 
 func loadEnv() {
-	err := godotenv.Load()
-	if err != nil {
+	if runtimePath := os.Getenv("ROOT_PATH"); runtimePath != "" {
+		ROOT_PATH = runtimePath
+	}
+
+	fmt.Println("Extracted ROOT_PATH from environment: " + ROOT_PATH)
+
+	envMap, err := godotenv.Read()
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		fmt.Println("Error loading .env file:", err)
-		return
 	}
-	rootPath := os.Getenv("ROOT_PATH")
-	if rootPath != "" {
-		ROOT_PATH = rootPath
+
+	if ROOT_PATH == "" {
+		if rootPath, ok := envMap["ROOT_PATH"]; ok && rootPath != "" {
+			ROOT_PATH = rootPath
+		}
 	}
-	fmt.Printf("Loaded ROOT_PATH from .env: %s\n", ROOT_PATH)
+
+	if ROOT_PATH == "" {
+		ROOT_PATH = "."
+	}
+
+	ROOT_PATH = filepath.Clean(ROOT_PATH)
+	if !filepath.IsAbs(ROOT_PATH) {
+		cwd, err := os.Getwd()
+		if err == nil {
+			ROOT_PATH = filepath.Join(cwd, ROOT_PATH)
+		}
+	}
+
+	fmt.Printf("Using ROOT_PATH=%s\n", ROOT_PATH)
 }
 
 // inTrustedRoot ensures the given path is under the trusted root directory.
@@ -102,10 +124,12 @@ func parseRequestedPath(r *http.Request) (string, error) {
 // resolveRequestedPath normalizes the requested path against ROOT_PATH and verifies it.
 // Called by DisplayDirectoryContents after parsing the query.
 func resolveRequestedPath(rawPath string) (string, error) {
-	if after, ok := strings.CutPrefix(rawPath, ROOT_PATH); ok {
-		rawPath = after
+	rawPath = path.Clean("/" + rawPath)
+	if rawPath == "/" {
+		rawPath = ""
 	}
 
+	rawPath = strings.TrimPrefix(rawPath, "/")
 	cleanPath := filepath.Join(ROOT_PATH, rawPath)
 	return verifyPath(cleanPath)
 }
@@ -234,8 +258,39 @@ func envOrDefault(name, fallback string) string {
 	return value
 }
 
+func initLogger() {
+	defaultLogDir := "./logs/file-server"
+	logDir := envOrDefault("LOG_PATH", defaultLogDir)
+
+	if !filepath.IsAbs(logDir) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: cannot resolve working directory: %v\n", err)
+			return
+		}
+		logDir = filepath.Join(cwd, logDir)
+	}
+	logDir = filepath.Clean(logDir)
+
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: cannot create log directory %s: %v\n", logDir, err)
+		return
+	}
+
+	logFile, err := os.OpenFile(filepath.Join(logDir, "app.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: cannot open log file: %v\n", err)
+		return
+	}
+
+	w := io.MultiWriter(os.Stdout, logFile)
+	slog.SetDefault(slog.New(slog.NewTextHandler(w, nil)))
+	fmt.Fprintf(os.Stderr, "Logging to %s\n", filepath.Join(logDir, "app.log"))
+}
+
 func main() {
 	loadEnv()
+	initLogger()
 
 	authUser := os.Getenv("BASIC_AUTH_USER")
 	authPass := os.Getenv("BASIC_AUTH_PASS")
