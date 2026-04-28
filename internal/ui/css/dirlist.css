@@ -1,0 +1,67 @@
+body {
+  font-family: Inter, Arial, sans-serif;
+  margin: 24px;
+  background: #f9fbff;
+  color: #111;
+}
+
+h1, h2 {
+  color: #1f2d3d;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+li {
+  margin: 0.6rem 0;
+}
+
+a {
+  color: #0b69ff;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.icon {
+  width: 1.2rem;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.directory .icon::before {
+  content: "📁";
+}
+
+.file .icon::before {
+  content: "📄";
+}
+
+.file.type-pdf .icon::before {
+  content: "📄";
+  color: #c63939;
+}
+
+.file.type-image .icon::before {
+  content: "🖼️";
+}
+
+.file.type-text .icon::before {
+  content: "📄";
+}
+
+.file.type-archive .icon::before {
+  content: "🗜️";
+}
+
+.label {
+  white-space: pre;
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"file-server/internal/auth"
 	"file-server/internal/file_traverse"
+	"file-server/internal/ui"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,7 +18,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func hello(w http.ResponseWriter, r *http.Request) {
+func handleHello(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hello, World!")
 }
 
@@ -38,6 +39,8 @@ func loadEnv() {
 	fmt.Printf("Loaded ROOT_PATH from .env: %s\n", ROOT_PATH)
 }
 
+// inTrustedRoot ensures the given path is under the trusted root directory.
+// Called by verifyPath during path validation.
 func inTrustedRoot(path string, trustedRoot string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -60,6 +63,8 @@ func inTrustedRoot(path string, trustedRoot string) error {
 	return nil
 }
 
+// verifyPath resolves symlinks and checks that the path remains within ROOT_PATH.
+// Called by resolveRequestedPath before file access.
 func verifyPath(path string) (string, error) {
 
 	// Read from config in the real world
@@ -84,88 +89,124 @@ func verifyPath(path string) (string, error) {
 	}
 }
 
-func wrapTargetInLink(path, dirname string) string {
-	return fmt.Sprintf("<a href=\"/files?path=%s\">%s</a>", path, dirname)
+// parseRequestedPath extracts the "path" query parameter from the request.
+// Called by DisplayDirectoryContents.
+func parseRequestedPath(r *http.Request) (string, error) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		return "", errors.New("Missing 'path' query parameter")
+	}
+	return path, nil
 }
 
-func startHTML(w http.ResponseWriter, title string) {
-	fmt.Fprintf(w, "<html><head><title>%s</title></head><body>", title)
+// resolveRequestedPath normalizes the requested path against ROOT_PATH and verifies it.
+// Called by DisplayDirectoryContents after parsing the query.
+func resolveRequestedPath(rawPath string) (string, error) {
+	if after, ok := strings.CutPrefix(rawPath, ROOT_PATH); ok {
+		rawPath = after
+	}
+
+	cleanPath := filepath.Join(ROOT_PATH, rawPath)
+	return verifyPath(cleanPath)
 }
 
-func endHTML(w http.ResponseWriter) {
-	fmt.Fprintf(w, "</body></html>")
+// getDisplayPath returns the path shown in the UI, with ROOT_PATH stripped.
+// Called by DisplayDirectoryContents before rendering the listing.
+func getDisplayPath(resolvedPath string) string {
+	fmt.Println("Resolved path for display: " + resolvedPath)
+	rootAbs, err := filepath.Abs(ROOT_PATH)
+	if err != nil {
+		return resolvedPath
+	}
+
+	resolvedAbs, err := filepath.Abs(resolvedPath)
+	if err != nil {
+		return resolvedPath
+	}
+
+	rel, err := filepath.Rel(rootAbs, resolvedAbs)
+	if err != nil {
+		return resolvedPath
+	}
+	if rel == "." {
+		return "/"
+	}
+	rel = filepath.ToSlash(rel)
+	if !strings.HasPrefix(rel, "/") {
+		rel = "/" + rel
+	}
+	return rel
+}
+
+// serveFile writes the contents of a regular file to the response.
+// Called by DisplayDirectoryContents when the requested path is a file.
+func serveFile(w http.ResponseWriter, path string, info os.FileInfo) error {
+	content, err := file_traverse.GetFileContent(path)
+	if err != nil {
+		return err
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", info.Name()))
+	_, err = w.Write(content)
+	return err
+}
+
+// listDirectoryContents returns the files and subdirectories for the given path.
+// Called by DisplayDirectoryContents when the requested path is a directory.
+func listDirectoryContents(path string) ([]string, []string, error) {
+	files, err := file_traverse.ListFiles(path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dirs, err := file_traverse.ListSubDirectories(path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return files, dirs, nil
 }
 
 // Should fetch directory from e.g
 // http://localhost:8080/files?path=/path/to/directory
-func DisplayDirectoryContents(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	path := query.Get("path")
-	if path == "" {
-		http.Error(w, "Missing 'path' query parameter", http.StatusBadRequest)
+func handleDisplayDirectoryContents(w http.ResponseWriter, r *http.Request) {
+	rawPath, err := parseRequestedPath(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	fmt.Printf("received path = %s\n", path)
-
-	// trim ROOT_PATH from the beginning of path if it exists to avoid double join
-	if after, ok := strings.CutPrefix(path, ROOT_PATH); ok {
-		path = after
-		fmt.Printf("trimmed path = %s\n", path)
-	}
-
-	path = filepath.Join(ROOT_PATH, path)
-	path, err := verifyPath(path)
+	path, err := resolveRequestedPath(rawPath)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error verifying path: %v", err), http.StatusBadRequest)
 		return
 	}
-	fmt.Println(" ---- ---- Verified path: " + path)
 
-	// check if path is a directory, a regular file or neither
 	info, err := os.Stat(path)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error accessing path: %v", err), http.StatusInternalServerError)
 		return
 	}
-	// if path is a file, serve the file content
+
 	if info.Mode().IsRegular() {
-		content, err := file_traverse.GetFileContent(path)
-		if err != nil {
+		// serveFile streams the file content to the response with appropriate headers.
+		if err := serveFile(w, path, info); err != nil {
 			http.Error(w, fmt.Sprintf("Error reading file: %v", err), http.StatusInternalServerError)
-			return
 		}
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", info.Name()))
-		w.Write(content)
 		return
 	}
 
-	files, err := file_traverse.ListFiles(path)
+	files, dirs, err := listDirectoryContents(path)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error listing files: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error listing directory contents: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	dirs, err := file_traverse.ListSubDirectories(path)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error listing directories: %v", err), http.StatusInternalServerError)
-		return
+	displayPath := getDisplayPath(path)
+	if err := ui.RenderDirectoryListing(w, displayPath, dirs, files); err != nil {
+		http.Error(w, fmt.Sprintf("Error rendering directory contents: %v", err), http.StatusInternalServerError)
 	}
-
-	startHTML(w, "Directory Contents")
-	fmt.Fprintf(w, "<h2>Directories in directory \"%s\":</h2>\n", path)
-	for _, dir := range dirs {
-		fmt.Fprintf(w, "<li>%s</li>\n", wrapTargetInLink(filepath.Join(path, dir), dir))
-	}
-
-	fmt.Fprintf(w, "<h2>Files in directory \"%s\":</h2>\n", path)
-	for _, file := range files {
-		fmt.Println("file: " + file)
-		fmt.Println("path: " + filepath.Join(path, file))
-		fmt.Fprintf(w, "<li>%s</li>\n", wrapTargetInLink(filepath.Join(path, file), file))
-	}
-	endHTML(w)
 }
 
 func Router(authMiddleware func(http.Handler) http.Handler) http.Handler {
@@ -178,8 +219,9 @@ func Router(authMiddleware func(http.Handler) http.Handler) http.Handler {
 		r.Use(authMiddleware)
 	}
 
-	r.Get("/hello", hello)
-	r.Get("/files", DisplayDirectoryContents)
+	r.Get("/hello", handleHello)
+	r.Get("/files", handleDisplayDirectoryContents)
+	r.Handle("/static/*", http.StripPrefix("/static/", ui.StaticHandler()))
 
 	return r
 }
