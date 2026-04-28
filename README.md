@@ -8,7 +8,7 @@ I wanted to make this because.
 - It gives me the possibility to make exactly what I want, add the features I want, and so on.
 - It's a project thme about something simple (serving files) that is simple enough while 
   deploying it securely still provides a little learning. Extending features to e.g file sharing
-  between several suers also provides some nice possibilities for learning new things.
+  between several users and adding fault tolerance also provides some nice possibilities for learning new things.
 - I'm not very motivated by complete toy projects. I would like to use this thing. It solves problems I actually have.
 
 
