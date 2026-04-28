@@ -2,6 +2,12 @@
 
 A minimal Go file server using `chi`, nginx reverse proxy, and Podman for local/home deployment.
 
+I wanted to make this because.
+- I'm sick of the hyperscaler cowboys.
+- I want to access my files while I rome the town from home to uni and back, and other places.
+- It gives me the possibility to make exactly what I want, add the features I want, and so on.
+
+
 ## What it does
 
 - Serves a directory listing through a Go web app
