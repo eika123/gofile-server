@@ -28,10 +28,7 @@ I wanted to make this because.
 Currently, credentials for the https is just stored plaintext in `.env`.
 Copy `.env-example` to `.env` before you start developing. This way of doing it is subject to change anytime soon.
 
-For deployment, we use nginx as a reverse proxy. You can try running the go app locally without nginx using 
-```sh
-./scripts run-local.sh
-```
+For deployment, we use nginx as a reverse proxy. You can try running the go app locally without nginx using `./scripts run-local.sh`.
 
 We use podman and podman-compose for container management. Install using e.g 
 ```sh
