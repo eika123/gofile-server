@@ -28,9 +28,9 @@ I wanted to make this because.
 Currently, credentials for the https is just stored plaintext in `.env`.
 Copy `.env-example` to `.env` before you start developing. This way of doing it is subject to change anytime soon.
 
-For deployment, we use nginx as a reverse proxy. You can try running the go app locally without nginx using `./scripts run-local.sh`.
+For deployment, we use [nginx](https://nginx.org/en/) as a reverse proxy. You can try running the go app locally without nginx using `./scripts run-local.sh`.
 
-We use podman and podman-compose for container management. Install using e.g 
+We use [podman](https://podman.io/) and podman-compose for container management. Install using e.g 
 ```sh
 sudo apt install podman podman-compose
 ```
@@ -46,8 +46,8 @@ Generate them using:
 
 Go dependencies are listed in `go.mod`. External libraries are
 
-* Chi for routing and some middleware like logging, measuring request latencies etc.
-* godotenv for reading env files.
+* [chi](https://github.com/go-chi/chi) for routing and some middleware like logging, measuring request latencies etc.
+* [godotenv](https://github.com/joho/godotenv)for reading env files.
 
 
 ## What it does
