@@ -31,6 +31,15 @@ Copy `.env-example` to `.env` before you start developing. This way of doing it 
 * For deployment, we use nginx as a reverse proxy. You can try running the go app locally without nginx using `./scripts run-local.sh`.
 * We use podman and podman-compose for container management. Install using e.g `sudo apt install podman podman-compose`.
 
+
+We use OpenSSL to generate self-signed certificates.
+Generate them using:
+
+```sh
+./scripts/generate-self-signed-cert.sh
+```
+
+
 Go dependencies are listed in `go.mod`. External libraries are
 
 * Chi for routing and some middleware like logging, measuring request latencies etc.
