@@ -12,6 +12,31 @@ I wanted to make this because.
 - I'm not very motivated by complete toy projects. I would like to use this thing. It solves problems I actually have.
 
 
+## How to run it
+```sh
+./scripts podman-up.sh
+```
+
+### Shut it down
+
+```sh
+./scripts podman-down.sh
+```
+
+## Prerequisites / dependencies
+
+Currently, credentials for the https is just stored plaintext in `.env`.
+Copy `.env-example` to `.env` before you start developing. This way of doing it is subject to change anytime soon.
+
+* For deployment, we use nginx as a reverse proxy. You can try running the go app locally without nginx using `./scripts run-local.sh`.
+* We use podman and podman-compose for container management. Install using e.g `sudo apt install podman podman-compose`.
+
+Go dependencies are listed in `go.mod`. External libraries are
+
+* Chi for routing and some middleware like logging, measuring request latencies etc.
+* godotenv for reading env files.
+
+
 ## What it does
 
 - Serves a directory listing through a Go web app
